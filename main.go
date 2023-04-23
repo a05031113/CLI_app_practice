@@ -24,11 +24,20 @@ type Folder struct {
 	Name        string
 	Description string
 	Create_at   string
+	Label       []string
 	Files       []File
+}
+
+// Label struct
+type Label struct {
+	Label_name   string
+	Color        string
+	Created_time string
 }
 
 // User structure
 type User struct {
+	Labels  map[string]Label
 	Folders map[string]Folder
 }
 
@@ -37,6 +46,22 @@ var Users = make(map[string]User)
 
 // Count folder ID
 var Id_count int = 1001
+
+func Check_user(username string) (User, error) {
+	user, user_exist := Users[username]
+	if !user_exist {
+		return User{}, fmt.Errorf("Error - unknown user")
+	}
+	return user, nil
+}
+
+func Check_folder(user User, folder_id string) (Folder, error) {
+	folder, folder_exist := user.Folders[folder_id]
+	if !folder_exist {
+		return Folder{}, fmt.Errorf("Error - folder_id not found")
+	}
+	return folder, nil
+}
 
 func Register(username string) {
 	// Check user exist
@@ -47,6 +72,7 @@ func Register(username string) {
 	// Create User
 	Users[username] = User{
 		Folders: make(map[string]Folder),
+		Labels:  make(map[string]Label),
 	}
 
 	fmt.Println("Success")
@@ -55,9 +81,9 @@ func Register(username string) {
 
 func Create_folder(username string, folder_name string, description string) {
 	// Check user exist
-	user, user_exist := Users[username]
-	if !user_exist {
-		fmt.Println("Error - unknown user")
+	user, user_err := Check_user(username)
+	if user_err != nil {
+		fmt.Println(user_err)
 		return
 	}
 	// Create folder
@@ -77,14 +103,14 @@ func Create_folder(username string, folder_name string, description string) {
 
 func Delete_folder(username string, folder_id string) {
 	// Check user exist
-	user, user_exist := Users[username]
-	if !user_exist {
-		fmt.Println("Error - unknown user")
+	user, user_err := Check_user(username)
+	if user_err != nil {
+		fmt.Println(user_err)
 		return
 	}
 	// Check folder exist
-	_, folder_exist := user.Folders[folder_id]
-	if !folder_exist {
+	_, folder_err := Check_folder(user, folder_id)
+	if folder_err != nil {
 		fmt.Println("Error - folder doesn't exist")
 		return
 	}
@@ -94,12 +120,12 @@ func Delete_folder(username string, folder_id string) {
 	return
 }
 
-func Get_folders(username string, sort_by *string, order_by *string) {
+func Get_folders(username string, label_name *string, sort_by *string, order_by *string) {
 	var folders []Folder
 	// Check user exist
-	user, user_exist := Users[username]
-	if !user_exist {
-		fmt.Println("Error - unknown user")
+	user, user_err := Check_user(username)
+	if user_err != nil {
+		fmt.Println(user_err)
 		return
 	}
 	// Append all folder into slice
@@ -111,6 +137,13 @@ func Get_folders(username string, sort_by *string, order_by *string) {
 	if len(folders) == 0 {
 		fmt.Println("Warning - empty folders")
 		return
+	}
+	// Check label exist
+	if label_name != nil {
+		if _, label_exist := user.Labels[*label_name]; !label_exist {
+			fmt.Println("Error - label name not exist")
+			return
+		}
 	}
 	// Sort folder
 	if sort_by != nil && order_by != nil {
@@ -141,7 +174,11 @@ func Get_folders(username string, sort_by *string, order_by *string) {
 	// Transfer into string
 	var folder_string []string
 	for _, folder := range folders {
-		folder_string = append(folder_string, fmt.Sprintf("%s|%s|%s|%s|%s", folder.ID, folder.Name, folder.Description, folder.Create_at, username))
+		if label_name != nil {
+			folder_string = append(folder_string, fmt.Sprintf("%s|%s|%s|%s|%s|%s", folder.ID, *label_name, folder.Name, folder.Description, folder.Create_at, username))
+		} else {
+			folder_string = append(folder_string, fmt.Sprintf("%s|%s|%s|%s|%s", folder.ID, folder.Name, folder.Description, folder.Create_at, username))
+		}
 	}
 	// Print result
 	for _, folder := range folder_string {
@@ -152,15 +189,15 @@ func Get_folders(username string, sort_by *string, order_by *string) {
 
 func Rename_folder(username string, folder_id string, new_folder_name string) {
 	// Check user exist
-	user, user_exist := Users[username]
-	if !user_exist {
-		fmt.Println("Error - unknown user")
+	user, user_err := Check_user(username)
+	if user_err != nil {
+		fmt.Println(user_err)
 		return
 	}
 	// Check specific folder exist
-	folder, folder_exist := user.Folders[folder_id]
-	if !folder_exist {
-		fmt.Println("Error - folder_id not found")
+	folder, folder_err := Check_folder(user, folder_id)
+	if folder_err != nil {
+		fmt.Println(folder_err)
 		return
 	}
 	// rename the folder
@@ -173,15 +210,15 @@ func Rename_folder(username string, folder_id string, new_folder_name string) {
 
 func Upload_file(username string, folder_id string, file_name string, description string) {
 	// Check user exist
-	user, user_exist := Users[username]
-	if !user_exist {
-		fmt.Println("Error - unknown user")
+	user, user_err := Check_user(username)
+	if user_err != nil {
+		fmt.Println(user_err)
 		return
 	}
 	// Check folder exist
-	folder, folder_exist := user.Folders[folder_id]
-	if !folder_exist {
-		fmt.Println("Error - folder_id not found")
+	folder, folder_err := Check_folder(user, folder_id)
+	if folder_err != nil {
+		fmt.Println(folder_err)
 		return
 	}
 	// Create file
@@ -201,15 +238,14 @@ func Upload_file(username string, folder_id string, file_name string, descriptio
 
 func Delete_file(username string, folder_id string, file_name string) {
 	// Check user exist
-	user, user_exist := Users[username]
-	if !user_exist {
-		fmt.Println("Error - unknown user")
-		return
+	user, user_err := Check_user(username)
+	if user_err != nil {
+		fmt.Println(user_err)
 	}
-	// Checkt folder exist
-	folder, folder_exist := user.Folders[folder_id]
-	if !folder_exist {
-		fmt.Println("Error - folder_id not found")
+	// Check folder exist
+	folder, folder_err := Check_folder(user, folder_id)
+	if folder_err != nil {
+		fmt.Println(folder_err)
 		return
 	}
 	// Select specific file and delete it
@@ -228,15 +264,15 @@ func Delete_file(username string, folder_id string, file_name string) {
 
 func Get_files(username string, folder_id string, sort_by *string, order_by *string) {
 	// Check user exist
-	user, user_exist := Users[username]
-	if !user_exist {
-		fmt.Println("Error - unknown user")
+	user, user_err := Check_user(username)
+	if user_err != nil {
+		fmt.Println(user_err)
 		return
 	}
 	// Check folder exist
-	folder, folder_exist := user.Folders[folder_id]
-	if !folder_exist {
-		fmt.Println("Error - folder_id not found")
+	folder, folder_err := Check_folder(user, folder_id)
+	if folder_err != nil {
+		fmt.Println(folder_err)
 		return
 	}
 	// Check amount of files
@@ -292,71 +328,210 @@ func Get_files(username string, folder_id string, sort_by *string, order_by *str
 	return
 }
 
+func Add_label(username string, label_name string, color string) {
+	// Check user exist
+	user, user_err := Check_user(username)
+	if user_err != nil {
+		fmt.Println(user_err)
+		return
+	}
+	// Check label already exist
+	for name, _ := range user.Labels {
+		if name == label_name {
+			fmt.Println("the label name existing")
+			return
+		}
+	}
+	// Create label and add in user
+	label := Label{
+		Color:        color,
+		Created_time: time.Now().Format("2006-01-02 15:04:05"),
+	}
+	user.Labels[label_name] = label
+	Users[username] = user
+
+	fmt.Println("Success")
+}
+
+func Get_labels(username string) {
+	var labels []Label
+	// Check user exist
+	user, user_err := Check_user(username)
+	if user_err != nil {
+		fmt.Println(user_err)
+		return
+	}
+	// Append all label into labels
+	for label_name, label := range user.Labels {
+		label.Label_name = label_name
+		labels = append(labels, label)
+	}
+	// if no label
+	if len(labels) == 0 {
+		fmt.Println("Warning - empty labels")
+	}
+	// Transfer to string
+	var label_string []string
+	for _, label := range labels {
+		label_string = append(label_string, fmt.Sprintf("%s|%s|%s|%s", label.Label_name, label.Color, label.Created_time, username))
+	}
+	// Print the result
+	for _, label := range label_string {
+		fmt.Println(label)
+	}
+	return
+}
+
+func Delete_labels(username string, label_name string) {
+	// Check user exist
+	user, user_err := Check_user(username)
+	if user_err != nil {
+		fmt.Println(user_err)
+		return
+	}
+	// Check label exist
+	_, label_exist := user.Labels[label_name]
+	if !label_exist {
+		fmt.Println("Error - the label name not exist")
+		return
+	}
+	// Delete label
+	delete(user.Labels, label_name)
+	fmt.Println("Success")
+	return
+}
+
+func Add_folder_label(username string, folder_id string, label_name string) {
+	// Check user exist
+	user, user_err := Check_user(username)
+	if user_err != nil {
+		fmt.Println(user_err)
+		return
+	}
+	// Check folder exist
+	folder, folder_err := Check_folder(user, folder_id)
+	if folder_err != nil {
+		fmt.Println(folder_err)
+		return
+	}
+	// Check label exist
+	for _, label := range folder.Label {
+		if label == label_name {
+			fmt.Println("Error - label name already exist")
+			return
+		}
+	}
+	folder.Label = append(folder.Label, label_name)
+	fmt.Println("Success")
+	return
+}
+
+func Delete_folder_label(username string, folder_id string, label_name string) {
+	// Check user exist
+	user, user_err := Check_user(username)
+	if user_err != nil {
+		fmt.Println(user_err)
+		return
+	}
+	// Check folder exist
+	folder, folder_err := Check_folder(user, folder_id)
+	if folder_err != nil {
+		fmt.Println(folder_err)
+		return
+	}
+	// Delete folder label
+	for i, label := range folder.Label {
+		if label == label_name {
+			folder.Label = append(folder.Label[:i], folder.Label[i+1:]...)
+			user.Folders[folder_id] = folder
+			fmt.Println("Success")
+			return
+		}
+	}
+	// If didn't find out specific file
+	fmt.Println("label not found")
+	return
+}
+
 func main() {
 	for true {
 		fmt.Print("# ")
 		// To get command-line input
 		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Scan()
-		input := scanner.Text()
+		input := string(scanner.Text())
+		// read the input into key word
+		var word_string []string
+		var quote bool = false
+		var word string
+		for _, letter := range input {
+			if !quote {
+				if letter == ' ' {
+					word_string = append(word_string, word)
+					word = ""
+				} else if letter == '\'' {
+					quote = true
+				} else {
+					word = word + string(letter)
+				}
+			} else {
+				if letter == '\'' {
+					quote = false
+					word_string = append(word_string, word)
+					word = ""
+				} else {
+					word = word + string(letter)
+				}
+			}
+		}
+		if input[len(input)-1] != '\'' || input[len(input)-1] != ' ' {
+			word_string = append(word_string, word)
+		}
+		// move item which is not "" to function
+		var function []string
+		for _, file := range word_string {
+			word = strings.Trim(file, " ")
+			if word != "" {
+				function = append(function, word)
+			}
+		}
 		// Check methods
-		function := strings.Split(input, " ")
 		if function[0] == "register" {
-			username := function[1]
-			Register(username)
+			Register(function[1])
 		} else if function[0] == "create_folder" {
-			username := function[1]
-			folder_name := strings.Trim(function[2], "‘’")
-			description := strings.Join(function[3:], " ")
-			description = strings.Trim(description, "‘’")
-			Create_folder(username, folder_name, description)
+			Create_folder(function[1], function[2], function[3])
 		} else if function[0] == "delete_folder" {
-			username := function[1]
-			folder_id := function[2]
-			Delete_folder(username, folder_id)
+			Delete_folder(function[1], function[2])
 		} else if function[0] == "get_folders" {
 			if len(function) > 2 {
-				username := function[1]
-				sort_by := function[2]
-				order_by := function[3]
-				Get_folders(username, &sort_by, &order_by)
-				// if no specific sort way
+				Get_folders(function[1], &function[2], &function[3], &function[4])
 			} else {
-				username := function[1]
-				Get_folders(username, nil, nil)
+				// if no specific sort way
+				Get_folders(function[1], nil, nil, nil)
 			}
 		} else if function[0] == "rename_folder" {
-			username := function[1]
-			folder_id := function[2]
-			folder_name := strings.Trim(function[3], "‘’")
-			Rename_folder(username, folder_id, folder_name)
+			Rename_folder(function[1], function[2], function[3])
 		} else if function[0] == "upload_file" {
-			username := function[1]
-			folder_id := function[2]
-			file_name := strings.Trim(function[3], "‘’")
-			description := strings.Join(function[4:], " ")
-			description = strings.Trim(description, "‘’")
-			Upload_file(username, folder_id, file_name, description)
+			Upload_file(function[1], function[2], function[3], function[4])
 		} else if function[0] == "delete_file" {
-			username := function[1]
-			folder_id := function[2]
-			file_name := function[3]
-			Delete_file(username, folder_id, file_name)
+			Delete_file(function[1], function[2], function[3])
 		} else if function[0] == "get_files" {
 			if len(function) > 3 {
-				username := function[1]
-				folder_id := function[2]
-				sort_by := function[3]
-				order_by := function[4]
-				Get_files(username, folder_id, &sort_by, &order_by)
-				// if no specific sort way
+				Get_files(function[1], function[2], &function[3], &function[4])
 			} else {
-				username := function[1]
-				folder_id := function[2]
-				Get_files(username, folder_id, nil, nil)
+				// if no specific sort way
+				Get_files(function[1], function[2], nil, nil)
 			}
-		} else {
-			fmt.Println(Users)
+		} else if function[0] == "add_label" {
+			Add_label(function[1], function[2], function[3])
+		} else if function[0] == "get_labels" {
+			Get_labels(function[1])
+		} else if function[0] == "delete_labels" {
+			Delete_labels(function[1], function[2])
+		} else if function[0] == "add_folder_label" {
+			Add_folder_label(function[1], function[2], function[3])
+		} else if function[0] == "delete_folder_label" {
+			Delete_folder_label(function[1], function[2], function[3])
 		}
 	}
 }
